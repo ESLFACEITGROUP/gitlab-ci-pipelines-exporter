@@ -44,6 +44,11 @@ type Store interface {
 	UnqueueTask(context.Context, schemas.TaskType, string) error
 	CurrentlyQueuedTasksCount(context.Context) (uint64, error)
 	ExecutedTasksCount(context.Context) (uint64, error)
+
+	// Garbage collections
+	HasProjectExpired(context.Context, schemas.ProjectKey) bool
+	HasRefExpired(context.Context, schemas.RefKey) bool
+	HasMetricExpired(context.Context, schemas.MetricKey) bool
 }
 
 // NewLocalStore ..
@@ -57,24 +62,30 @@ func NewLocalStore() Store {
 }
 
 // NewRedisStore ..
-func NewRedisStore(client *redis.Client) Store {
-	return &Redis{
+func NewRedisStore(client *redis.Client, opts ...RedisStoreOptions) *Redis {
+	r := &Redis{
 		Client: client,
 	}
+
+	for _, opt := range opts {
+		opt(r.StoreConfig)
+	}
+
+	return r
 }
 
 // New creates a new store and populates it with
 // provided []schemas.Project.
 func New(
 	ctx context.Context,
-	r *redis.Client,
+	r *Redis,
 	projects config.Projects,
 ) (s Store) {
 	ctx, span := otel.Tracer("gitlab-ci-pipelines-exporter").Start(ctx, "store:New")
 	defer span.End()
 
 	if r != nil {
-		s = NewRedisStore(r)
+		s = r
 	} else {
 		s = NewLocalStore()
 	}
