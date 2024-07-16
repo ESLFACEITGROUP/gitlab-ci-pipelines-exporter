@@ -44,7 +44,10 @@ func (c *Controller) processJobEvent(ctx context.Context, e goGitlab.JobEvent) {
 		refName = e.Ref
 	)
 
-	if e.Tag {
+	if iid, err := schemas.GetMergeRequestIIDFromRefName(refName); err != nil {
+		refKind = schemas.RefKindMergeRequest
+		refName = iid
+	} else if e.Tag {
 		refKind = schemas.RefKindTag
 	} else {
 		refKind = schemas.RefKindBranch
