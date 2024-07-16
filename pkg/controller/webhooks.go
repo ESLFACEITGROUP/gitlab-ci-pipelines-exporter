@@ -38,13 +38,13 @@ func (c *Controller) processPipelineEvent(ctx context.Context, e goGitlab.Pipeli
 	))
 }
 
-func (c *Controller) processJobEvent(ctx context.Context, e goGitlab.JobEvent) {
+func (c *Controller) processJobEvent(ctx context.Context, e goGitlab.JobEvent) error {
 	var (
 		refKind schemas.RefKind
 		refName = e.Ref
 	)
 
-	if iid, err := schemas.GetMergeRequestIIDFromRefName(refName); err != nil {
+	if iid, err := schemas.GetMergeRequestIIDFromRefName(refName); err == nil {
 		refKind = schemas.RefKindMergeRequest
 		refName = iid
 	} else if e.Tag {
@@ -59,7 +59,7 @@ func (c *Controller) processJobEvent(ctx context.Context, e goGitlab.JobEvent) {
 			WithError(err).
 			Error("reading project from GitLab")
 
-		return
+		return err
 	}
 
 	c.triggerRefMetricsPull(ctx, schemas.NewRef(
@@ -67,6 +67,8 @@ func (c *Controller) processJobEvent(ctx context.Context, e goGitlab.JobEvent) {
 		refKind,
 		refName,
 	))
+
+	return nil
 }
 
 func (c *Controller) processPushEvent(ctx context.Context, e goGitlab.PushEvent) {
