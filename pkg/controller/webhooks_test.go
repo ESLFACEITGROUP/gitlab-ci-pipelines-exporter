@@ -3,14 +3,14 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/require"
-	"github.com/xanzy/go-gitlab"
 	"io"
 	"net/http"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/xanzy/go-gitlab"
 
 	"github.com/mvisonneau/gitlab-ci-pipelines-exporter/pkg/config"
 	"github.com/mvisonneau/gitlab-ci-pipelines-exporter/pkg/schemas"
@@ -64,36 +64,26 @@ func TestTriggerEnvironmentMetricsPull(t *testing.T) {
 }
 
 func TestController_processJobEvent(t *testing.T) {
-	ctx, c, mux, srv := newTestController(config.Config{
-		Wildcards: config.Wildcards{
-			{
-				Search: "*",
-				Owner: config.WildcardOwner{
-					Name:             "foo",
-					Kind:             "group",
-					IncludeSubgroups: false,
-				},
-				Archived: false,
-				ProjectParameters: config.ProjectParameters{
-					Pull: config.ProjectPull{
-						Refs: config.ProjectPullRefs{
-							Branches: config.ProjectPullRefsBranches{
-								Enabled:        true,
-								Regexp:         "master",
-								MostRecent:     1,
-								MaxAgeSeconds:  0,
-								ExcludeDeleted: true,
-							},
-							Tags:          config.ProjectPullRefsTags{},
-							MergeRequests: config.ProjectPullRefsMergeRequests{},
+	ctx, c, mux, srv := newTestController(config.Config{})
+	defer srv.Close()
+
+	c.Store.SetProject(ctx, schemas.Project{
+		Project: config.Project{
+			ProjectParameters: config.ProjectParameters{
+				Pull: config.ProjectPull{
+					Environments: config.ProjectPullEnvironments{},
+					Refs: config.ProjectPullRefs{
+						Branches: config.ProjectPullRefsBranches{
+							Enabled: true,
+							Regexp:  "master",
 						},
 					},
-					OutputSparseStatusMetrics: false,
 				},
+				OutputSparseStatusMetrics: false,
 			},
+			Name: "foo/bar",
 		},
 	})
-	defer srv.Close()
 
 	mux.HandleFunc("/api/v4/projects/380",
 		func(w http.ResponseWriter, r *http.Request) {
@@ -109,6 +99,10 @@ func TestController_processJobEvent(t *testing.T) {
 	// Validate that the pull project task was queued
 	n, err := c.Store.CurrentlyQueuedTasksCount(ctx)
 	assert.Equal(t, uint64(1), n)
+	assert.NoError(t, err)
+
+	//UnqueueTask does return error if the task doesn't exist so we can't use it for testing
+	//err = c.Store.UnqueueTask(ctx, schemas.TaskTypePullMetrics, "143259044")
 }
 
 func readJobEvent(t *testing.T, filePath string) (*gitlab.JobEvent, error) {
